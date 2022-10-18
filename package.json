@@ -1,7 +1,8 @@
 {
   "name": "impulso-seo",
+  "description": "Obtenha SEO insights de uma página web",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -25,5 +26,15 @@
     "prettier": "^2.7.1",
     "tailwindcss": "^3.1.8",
     "typescript": "4.8.4"
+  },
+  "homepage": "https://impulso-seo.vercel.app",
+  "author": {
+    "name": "goth_d_",
+    "url": "https://github.com/goth-d"
+  },
+  "license": "Apache-2.0",
+  "repository": {
+    "url": "https://github.com/goth-d/impulso-seo.git",
+    "type": "git"
   }
 }
