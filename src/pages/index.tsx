@@ -17,7 +17,7 @@ const Home: NextPage = () => {
   const [estaEnviando, defEstaEnviando] = useState(false);
 
   const aoEnviarForm = useCallback(
-    (e: FormEvent<HTMLFormElement>) => {
+    async (e: FormEvent<HTMLFormElement>) => {
       e.preventDefault();
       if (!estaEnviando) {
         defEstaEnviando(true);
@@ -26,7 +26,7 @@ const Home: NextPage = () => {
         console.log(anchor.protocol, anchor.hostname, anchor.href);
         anchor.remove();
 
-        setTimeout(() => defEstaEnviando(false), 3000);
+        setTimeout(() => defEstaEnviando(false), 2000);
       }
     },
     [estaEnviando, url]
