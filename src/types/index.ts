@@ -1,3 +1,32 @@
+import Dispatcher from "undici/types/dispatcher";
+
+export type RaspadorClienteCabeçalhos<
+  RaspadorNome extends string = any,
+  FonteLink extends string = any
+> = Dispatcher.RequestOptions["headers"] & {
+  "user-agent"?: `${RaspadorNome}Bot (${FonteLink})`;
+};
+export type RaspadorClienteOpções<
+  RaspadorNome extends string = any,
+  FonteLink extends string = any
+> = Omit<Dispatcher.RequestOptions, "path" | "method" | "headers"> & {
+  method?: Dispatcher.RequestOptions["method"];
+  headers?: RaspadorClienteCabeçalhos<RaspadorNome, FonteLink>;
+};
+export type RaspadorClienteRequisição<
+  RaspadorNome extends string = any,
+  FonteLink extends string = any
+> = Omit<Dispatcher.RequestOptions, "method" | "headers"> & {
+  method?: Dispatcher.RequestOptions["method"];
+  headers?: RaspadorClienteCabeçalhos<RaspadorNome, FonteLink>;
+};
+
+export interface IRaspadorCliente<Nome extends string = any, Link extends string = any> {
+  opcoes: RaspadorClienteOpções<Nome, Link>;
+  dispatcher: Dispatcher;
+  requisitar(opcoes: RaspadorClienteRequisição): Promise<string>;
+}
+
 export interface IRaspadorSEO {
   pagina: {
     /** Endereço da página */
@@ -6,30 +35,29 @@ export interface IRaspadorSEO {
     1: (url: string | URL | HTMLAnchorElement | undefined) => void;
   };
   /** Se a página é acessível no servidor */
-  paginaValida?: boolean;
+  paginaValida: Promise<string | void>;
   /** Agregado de títulos */
-  paginaMetadados?: Record<string, any>;
+  paginaMetadados: Promise<RelaçãoPagina | void>;
   /** Agregado de consultas */
-  pesquisaMetadados?: Record<string, any>;
+  pesquisaMetadados: Promise<RelaçãoPesquisa | void>;
   /** Resultado dos cálculos */
-  analiseSEO?: AnáliseSEO;
+  analiseSEO: Promise<AnáliseSEO | void>;
 }
-/** Texto da página */
-export type IDocumento = string;
+/** Texto da página web */
+export type DocumentoTexto = string;
 /** Obtém o documento e/ou checa a disponibilidade */
-export type RequisitarPagina = (url: string) => IDocumento;
-
-export type RaspadorCliente = {};
+export type RequisitarPagina = (url: string) => DocumentoTexto;
 
 export interface IDocRaspavel {
-  /** Endereço absoluto na web */
-  url: string;
-  /** Define propriedades do objeto raspável */
-  rasparDados(): Promise<void>;
+  /** Endereço na web */
+  endereco: URL | string;
+  doc?: DocumentoTexto;
+  obterDocumento(cliente?: IRaspadorCliente): Promise<this>;
 }
 
 export interface IPagina {
   titulos: string[];
+  rasparTitulos(): Promise<this>;
 }
 
 /** Ferramentas de pesquisa utilizadas de fonte */
@@ -37,29 +65,36 @@ export type FerramentasNomes = "Google" | "Bing" | "Yahoo";
 
 export interface IFerramentaPesquisa {
   nome: FerramentasNomes;
-  urlBase: string | URL;
+  origem: string | URL;
   // Bing, first; Google, start; Yahoo, b;
   paramPosicaoDeslocada: string;
   // q; q; p;
   paramConsulta: string;
   // #main; #search; #main;
   conteudoSeletor: string;
+
+  relacionadosSeletor?: string;
 }
 
 export interface IPesquisa {
   ferramenta: IFerramentaPesquisa["nome"];
-  correspondencia: string;
+  consulta: string;
+  /** Origem da consulta, para qual deve corresponder a pesquisa */
+  fonte: URL;
   posicao: number;
   pagina: number;
+  rasparCorrespondente(): Promise<this>;
+  obterRelacionados(): Promise<string[]>;
 }
 
 export type RelaçãoPagina = {
-  consultasSemelhantes: Record<string, string[]>;
+  consultasRelacionadas: Array<string[]>;
   data: Date | number;
+  fonte: string | URL;
 };
 
 export type RelaçãoPesquisa = {
-  registrosPesquisa: Record<string, Pick<IPesquisa, "posicao" | "pagina">>;
+  registrosPesquisa: Record<FerramentasNomes, Array<Pick<IPesquisa, "posicao" | "pagina">[]>>;
   data: Date | number;
 };
 

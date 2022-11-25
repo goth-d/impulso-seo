@@ -4,90 +4,170 @@ import {
   IFerramentaPesquisa,
   IPagina,
   IPesquisa,
+  IRaspadorCliente,
+  RaspadorClienteOpções,
+  RaspadorClienteRequisição,
 } from "../../../types";
-import { request as requisitar } from "undici";
+import { Dispatcher } from "undici";
 
-export class RaspadorClient {
-  constructor() {}
+const RaspadorClienteOpcoes: RaspadorClienteOpções = {
+  method: "GET",
+  throwOnError: true,
+  headersTimeout: 5 * 1000,
+  bodyTimeout: 15 * 1000,
+  headers: {
+    "user-agent": "ImpulsoSeoBot (https://github.com/goth-d/impulso-seo)",
+    accept: "text/html, application/xhtml+xml, application/xml;q=0.9, */*;q=0.8",
+  },
+};
+function agregarClienteOpcoes(
+  opcoesEntrada: Partial<Dispatcher.RequestOptions> | undefined,
+  opcoesPredefinidas = RaspadorClienteOpcoes
+) {
+  return {
+    ...opcoesPredefinidas,
+    ...opcoesEntrada,
+    headers: { ...opcoesPredefinidas.headers, ...opcoesEntrada?.headers },
+  };
+}
 
-  public async requisitarPagina(url: string) {
-    return requisitar(url, {
-      method: "GET",
-      throwOnError: true,
-      bodyTimeout: 5000,
-      headers: {
-        accept: "text/html, application/xhtml+xml, application/xml;q=0.9, */*;q=0.8",
-      },
-    }).then((res) => res.body.text());
+export class RaspadorCliente<
+  Nome extends string = "ImpulsoSeo",
+  Link extends string = "https://github.com/goth-d/impulso-seo"
+> implements IRaspadorCliente<Nome, Link>
+{
+  readonly dispatcher: Dispatcher;
+  readonly opcoes: RaspadorClienteOpções<Nome, Link>;
+
+  constructor(opcoes?: RaspadorClienteOpções<Nome, Link>, dispatcher?: Dispatcher) {
+    this.dispatcher = dispatcher || new Dispatcher();
+    this.opcoes = agregarClienteOpcoes(opcoes);
+  }
+
+  public async requisitar<BotNome extends string = Nome, FonteLink extends string = Link>(
+    opcoes: RaspadorClienteRequisição<BotNome, FonteLink>
+  ): Promise<string> {
+    return this.dispatcher
+      .request(agregarClienteOpcoes(opcoes, this.opcoes) as Dispatcher.RequestOptions)
+      .then((res) => res.body.text());
   }
 }
 
-export class Pagina implements IDocRaspavel, IPagina {
-  readonly url: string;
-  readonly _titulos: Array<[HTMLHeadingElement["tagName"], HTMLElement["innerHTML"]]>;
+export class DocRaspavel implements IDocRaspavel {
+  readonly endereco: URL | string;
 
-  constructor(url: string) {
-    this.url = url;
+  private _doc?: string;
+  constructor(endereco: string | URL) {
+    this.endereco = endereco;
+  }
+  public async obterDocumento(cliente?: RaspadorCliente): Promise<this> {
+    cliente = cliente || new RaspadorCliente();
+    return cliente
+      .requisitar(
+        this.endereco instanceof URL
+          ? {
+              origin: this.endereco.origin,
+              path: String(this.endereco).slice(this.endereco.origin.length),
+            }
+          : { path: this.endereco }
+      )
+      .then((doc) => {
+        this._doc = doc;
+        return this;
+      });
+  }
+  get doc() {
+    return this._doc;
+  }
+}
+
+export class Pagina extends DocRaspavel implements IPagina {
+  private _titulos: Array<[HTMLHeadingElement["tagName"], HTMLElement["innerHTML"]]>;
+
+  constructor(url: string | URL) {
+    super(url);
     this._titulos = [];
   }
+
   get titulos() {
     // TODO: ordenar por tag
     return this._titulos.map(([_, t]) => t);
   }
-  static obterConsultasSemelhantes() {
-    // TODO: requisitar api externa
-    throw new Error("Método não implementado");
-  }
-  public async rasparDados() {
+  public async rasparTitulos() {
     // TODO: usar cheerio
     // validar texto html safe
     // resumir titulo
-    throw new Error("Método não implementado");
+    return this;
   }
 }
 
 export class FerramentaPesquisa implements IFerramentaPesquisa {
   readonly nome: FerramentasNomes;
-  readonly urlBase: string | URL;
+  readonly origem: string | URL;
   readonly paramConsulta: string;
   readonly paramPosicaoDeslocada: string;
   readonly conteudoSeletor: string;
+  readonly relacionadosSeletor?: string;
 
   constructor(
     nome: FerramentasNomes,
-    urlBase: string | URL,
+    origem: string | URL,
     paramConsulta: string,
     paramPosicaoDeslocada: string,
-    conteudoSeletor: string
+    conteudoSeletor: string,
+    relacionadosSeletor?: string
+  );
+  constructor(
+    nome: FerramentasNomes,
+    origem: string | URL,
+    paramConsulta: string,
+    paramPosicaoDeslocada: string,
+    conteudoSeletor: string,
+    relacionadosSeletor: string
   ) {
     this.nome = nome;
-    this.urlBase = new URL(urlBase);
+    this.origem = new URL(origem);
     this.paramConsulta = paramConsulta;
     this.paramPosicaoDeslocada = paramPosicaoDeslocada;
     this.conteudoSeletor = conteudoSeletor;
+    if (relacionadosSeletor) this.relacionadosSeletor = relacionadosSeletor;
   }
 
-  public novaPesquisa(consulta: string, correspondencia: string): Pesquisa {
-    let url = "/" + consulta;
+  public novaPesquisa(consulta: string, fonte: string | URL): Pesquisa {
+    let caminho = "/" + consulta;
     // TODO: gerar url
-    return new Pesquisa(this.nome, url, correspondencia);
+    return new Pesquisa(this, caminho, consulta, fonte);
   }
 }
 
-export class Pesquisa implements IDocRaspavel, IPesquisa {
-  readonly url: string;
-  readonly ferramenta: FerramentasNomes;
-  readonly correspondencia: string;
+export class Pesquisa extends DocRaspavel implements IPesquisa {
+  readonly ferramenta: FerramentaPesquisa["nome"];
+  readonly consulta: string;
+  readonly fonte: URL;
   private _posicao?: number;
   private _pagina?: number;
+  public obterRelacionados: () => Promise<string[]>;
   constructor(
-    ferramenta: IFerramentaPesquisa["nome"],
-    consultaUrl: string,
-    correspondencia: string
+    ferramenta: FerramentaPesquisa,
+    consulta: string,
+    consultaURI: string,
+    fonte: string | URL
+  );
+  constructor(
+    ferramenta: FerramentaPesquisa,
+    consulta: string,
+    consultaCaminho: string,
+    fonte: string | URL
   ) {
-    this.ferramenta = ferramenta;
-    this.url = consultaUrl;
-    this.correspondencia = correspondencia;
+    super(consultaCaminho);
+    this.consulta = consulta;
+    this.fonte = new URL(fonte);
+    if (ferramenta.relacionadosSeletor)
+      this.obterRelacionados = async () => {
+        return [];
+      };
+    else this.obterRelacionados = async () => [];
+    this.ferramenta = ferramenta.nome;
   }
   get posicao() {
     return this._posicao || NaN;
@@ -95,10 +175,10 @@ export class Pesquisa implements IDocRaspavel, IPesquisa {
   get pagina() {
     return this._pagina || NaN;
   }
-  public async rasparDados() {
+  public async rasparCorrespondente() {
     // TODO: usar cheerio
     // veirificar se a correspendencia está contina na página
     // obter posicao e definir pagina
-    throw new Error("Método não implementado");
+    return this;
   }
 }
