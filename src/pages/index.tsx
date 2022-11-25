@@ -3,6 +3,7 @@ import Head from "next/head";
 import Link from "next/link";
 import { usePacote } from "../context/usarPacote";
 import { FormEvent, useCallback, useRef, useState } from "react";
+import { useRaspador } from "../context/usarRaspador";
 
 const Home: NextPage = () => {
   const {
@@ -12,6 +13,8 @@ const Home: NextPage = () => {
     repository: repo,
     license: licenca,
   } = usePacote();
+  const Raspador = useRaspador();
+
   const urlInput = useRef<HTMLInputElement>(null);
   const [url, defUrl] = useState("");
   const [estaEnviando, defEstaEnviando] = useState(false);
@@ -21,15 +24,21 @@ const Home: NextPage = () => {
       e.preventDefault();
       if (!estaEnviando) {
         defEstaEnviando(true);
+
         const anchor = document.createElement("a");
         anchor.href = url;
-        console.log(anchor.protocol, anchor.hostname, anchor.href);
-        anchor.remove();
 
+        Raspador.pagina[1](anchor.href);
+        console.log(Raspador.pagina[0]);
+        console.log(!!(await Raspador.paginaValida));
+        console.log(await Raspador.paginaMetadados);
+
+        anchor.remove();
+        
         setTimeout(() => defEstaEnviando(false), 2000);
       }
     },
-    [estaEnviando, url]
+    [estaEnviando, url, Raspador]
   );
 
   return (

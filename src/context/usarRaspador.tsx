@@ -1,5 +1,8 @@
 import { createContext, ReactNode, useCallback, useContext, useMemo, useState } from "react";
-import { IRaspadorSEO } from "../types";
+import { Dados as DadosPagina } from "../pages/api/pagina";
+import { Dados as DadosPaginaRaspada } from "../pages/api/pagina/raspar";
+import { Dados as DadosPesquisaRaspada } from "../pages/api/pesquisa";
+import { AnáliseSEO, IRaspadorSEO } from "../types";
 
 const RaspadorContexto = createContext<IRaspadorSEO>({} as IRaspadorSEO);
 
@@ -23,10 +26,46 @@ export function RaspadorProvedor({ children }: RaspadorContextoProps) {
     [paginaUrl]
   );
 
-  const paginaValida = useMemo(() => true, []);
-  const paginaMetadados = useMemo(() => undefined, []);
-  const pesquisaMetadados = useMemo(() => undefined, []);
-  const analiseSEO = useMemo(() => undefined, []);
+  const paginaValida: IRaspadorSEO["paginaValida"] = useMemo(
+    async () =>
+      paginaUrl
+        ? await fetch(`api/pagina?url=${encodeURIComponent(paginaUrl)}`)
+            .then((res) => res.json())
+            .then((dados: DadosPagina) => (dados.valido ? paginaUrl : ""))
+            .catch(() => "")
+        : undefined,
+    [paginaUrl]
+  );
+
+  const paginaMetadados: IRaspadorSEO["paginaMetadados"] = useMemo(async () => {
+    const paginaFonte = await paginaValida;
+    return paginaFonte
+      ? await fetch(`api/pagina/raspar?url=${paginaValida}`)
+          .then((res) => res.json())
+          .then((dados: DadosPaginaRaspada) => dados)
+          .catch(() => undefined)
+      : undefined;
+  }, [paginaValida]);
+
+  const pesquisaMetadados: IRaspadorSEO["pesquisaMetadados"] = useMemo(async () => {
+    const metadados = await paginaMetadados;
+    return metadados
+      ? await fetch("api/pesquisa", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ metadados }),
+        })
+          .then((res) => res.json())
+          .then((dados: DadosPesquisaRaspada) => dados)
+          .catch(() => undefined)
+      : undefined;
+  }, [paginaMetadados]);
+
+  const analiseSEO: IRaspadorSEO["analiseSEO"] = useMemo(async () => {
+    const metadados = await pesquisaMetadados;
+    return metadados ?
+    {} as AnáliseSEO : undefined
+  }, [pesquisaMetadados]);
 
   return (
     <RaspadorContexto.Provider
