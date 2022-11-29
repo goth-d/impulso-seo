@@ -26,6 +26,8 @@ export default async function genreciador(req: NextApiRequest, res: NextApiRespo
       if (e instanceof Error) console.log(e.message);
     }
 
+    console.log(`[${new Date().toLocaleString()}] Titulos: ${pagina.titulos}`);
+
     const consultasRelacionadas: RelaçãoPagina["consultasRelacionadas"] = [];
     if (pagina.titulos.length) {
       /** obtenção relacionados */

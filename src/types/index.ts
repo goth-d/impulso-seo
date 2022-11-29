@@ -16,15 +16,14 @@ export type RaspadorClienteOpções<
 export type RaspadorClienteRequisição<
   RaspadorNome extends string = any,
   FonteLink extends string = any
-> = Omit<Dispatcher.RequestOptions, "method" | "headers"> & {
+> = Omit<Dispatcher.RequestOptions, "path" | "origin" | "method" | "headers"> & {
   method?: Dispatcher.RequestOptions["method"];
   headers?: RaspadorClienteCabeçalhos<RaspadorNome, FonteLink>;
 };
 
 export interface IRaspadorCliente<Nome extends string = any, Link extends string = any> {
   opcoes: RaspadorClienteOpções<Nome, Link>;
-  dispatcher: Dispatcher;
-  requisitar(opcoes: RaspadorClienteRequisição): Promise<string>;
+  requisitar(url: string | URL, opcoes: RaspadorClienteRequisição): Promise<string>;
 }
 
 export interface IRaspadorSEO {
@@ -34,14 +33,16 @@ export interface IRaspadorSEO {
     /** Define o endereço da página */
     1: (url: string | URL | HTMLAnchorElement | undefined) => void;
   };
+  /** Estado raspando */
+  estaRaspando: boolean | undefined;
   /** Se a página é acessível no servidor */
-  paginaValida: Promise<string | void>;
+  paginaValida: string | undefined;
   /** Agregado de títulos */
-  paginaMetadados: Promise<RelaçãoPagina | void>;
+  paginaMetadados: RelaçãoPagina | undefined;
   /** Agregado de consultas */
-  pesquisaMetadados: Promise<RelaçãoPesquisa | void>;
+  pesquisasMetadados: RelaçãoPesquisas | undefined;
   /** Resultado dos cálculos */
-  analiseSEO: Promise<AnáliseSEO | void>;
+  analiseSEO: AnáliseSEO | undefined;
 }
 /** Texto da página web */
 export type DocumentoTexto = string;
@@ -93,8 +94,8 @@ export type RelaçãoPagina = {
   fonte: string | URL;
 };
 
-export type RelaçãoPesquisa = {
-  registrosPesquisa: Record<FerramentasNomes, Array<Pick<IPesquisa, "posicao" | "pagina">[]>>;
+export type RelaçãoPesquisas = {
+  registrosPesquisas: Record<FerramentasNomes, Array<Pick<IPesquisa, "posicao" | "pagina">[]>>;
   data: Date | number;
 };
 

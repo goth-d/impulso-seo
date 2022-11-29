@@ -1,19 +1,19 @@
-import { AnáliseSEO, RelaçãoPesquisa } from "../src/types";
+import { AnáliseSEO, RelaçãoPesquisas } from "../src/types";
 
 export default class CorrelatorPesquisa {
   constructor() {}
   static correlacionarTitulos(
-    metadados: RelaçãoPesquisa["registrosPesquisa"],
+    metadados: RelaçãoPesquisas["registrosPesquisas"],
     eficiencia: AnáliseSEO["posicaoEficiencia"]
   ): AnáliseSEO["correlacaoTermos"] {
     throw new Error("Método não implementado");
   }
   static calcularEficiencia(
-    metadados: RelaçãoPesquisa["registrosPesquisa"]
+    metadados: RelaçãoPesquisas["registrosPesquisas"]
   ): AnáliseSEO["posicaoEficiencia"] {
     throw new Error("Método não implementado");
   }
-  static analisarPesquisas(metadados: RelaçãoPesquisa["registrosPesquisa"]) {
+  static analisarPesquisas(metadados: RelaçãoPesquisas["registrosPesquisas"]) {
     throw new Error("Método não implementado");
   }
 }

@@ -8,12 +8,12 @@ import {
   RaspadorClienteOpções,
   RaspadorClienteRequisição,
 } from "../../../types";
-import { Dispatcher } from "undici";
+import { Dispatcher, request as undiciRequisitar } from "undici";
 
 const RaspadorClienteOpcoes: RaspadorClienteOpções = {
   method: "GET",
   throwOnError: true,
-  headersTimeout: 5 * 1000,
+  headersTimeout: 15 * 1000,
   bodyTimeout: 15 * 1000,
   headers: {
     "user-agent": "ImpulsoSeoBot (https://github.com/goth-d/impulso-seo)",
@@ -36,20 +36,28 @@ export class RaspadorCliente<
   Link extends string = "https://github.com/goth-d/impulso-seo"
 > implements IRaspadorCliente<Nome, Link>
 {
-  readonly dispatcher: Dispatcher;
   readonly opcoes: RaspadorClienteOpções<Nome, Link>;
 
-  constructor(opcoes?: RaspadorClienteOpções<Nome, Link>, dispatcher?: Dispatcher) {
-    this.dispatcher = dispatcher || new Dispatcher();
+  constructor(opcoes?: RaspadorClienteOpções<Nome, Link>) {
     this.opcoes = agregarClienteOpcoes(opcoes);
   }
 
   public async requisitar<BotNome extends string = Nome, FonteLink extends string = Link>(
-    opcoes: RaspadorClienteRequisição<BotNome, FonteLink>
+    url: string | URL,
+    opcoes?: RaspadorClienteRequisição<BotNome, FonteLink>
   ): Promise<string> {
-    return this.dispatcher
-      .request(agregarClienteOpcoes(opcoes, this.opcoes) as Dispatcher.RequestOptions)
-      .then((res) => res.body.text());
+    const clienteOpcoes = { ...this.opcoes };
+
+    if (this.opcoes.origin) {
+      // adiciona origin caso não tenha no url
+      url = new URL(url, this.opcoes.origin);
+      // previne erro no undici de argumento invalido
+      delete clienteOpcoes.origin;
+    }
+
+    return undiciRequisitar(url, agregarClienteOpcoes(opcoes, clienteOpcoes)).then((res) =>
+      res.body.text()
+    );
   }
 }
 
@@ -62,19 +70,11 @@ export class DocRaspavel implements IDocRaspavel {
   }
   public async obterDocumento(cliente?: RaspadorCliente): Promise<this> {
     cliente = cliente || new RaspadorCliente();
-    return cliente
-      .requisitar(
-        this.endereco instanceof URL
-          ? {
-              origin: this.endereco.origin,
-              path: String(this.endereco).slice(this.endereco.origin.length),
-            }
-          : { path: this.endereco }
-      )
-      .then((doc) => {
-        this._doc = doc;
-        return this;
-      });
+
+    return cliente.requisitar(this.endereco).then((doc) => {
+      this._doc = doc;
+      return this;
+    });
   }
   get doc() {
     return this._doc;
@@ -85,7 +85,7 @@ export class Pagina extends DocRaspavel implements IPagina {
   private _titulos: Array<[HTMLHeadingElement["tagName"], HTMLElement["innerHTML"]]>;
 
   constructor(url: string | URL) {
-    super(url);
+    super(new URL(url));
     this._titulos = [];
   }
 

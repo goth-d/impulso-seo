@@ -2,7 +2,7 @@ import type { NextPage } from "next";
 import Head from "next/head";
 import Link from "next/link";
 import { usePacote } from "../context/usarPacote";
-import { FormEvent, useCallback, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useRaspador } from "../context/usarRaspador";
 
 const Home: NextPage = () => {
@@ -17,28 +17,21 @@ const Home: NextPage = () => {
 
   const urlInput = useRef<HTMLInputElement>(null);
   const [url, defUrl] = useState("");
-  const [estaEnviando, defEstaEnviando] = useState(false);
 
   const aoEnviarForm = useCallback(
     async (e: FormEvent<HTMLFormElement>) => {
       e.preventDefault();
-      if (!estaEnviando) {
-        defEstaEnviando(true);
-
+      if (!Raspador.estaRaspando) {
         const anchor = document.createElement("a");
         anchor.href = url;
 
         Raspador.pagina[1](anchor.href);
-        console.log(Raspador.pagina[0]);
-        console.log(!!(await Raspador.paginaValida));
-        console.log(await Raspador.paginaMetadados);
+        // o estado do contexto é atualizado primeiro que do component, em estaEnviando
 
         anchor.remove();
-        
-        setTimeout(() => defEstaEnviando(false), 2000);
       }
     },
-    [estaEnviando, url, Raspador]
+    [url, Raspador]
   );
 
   return (
@@ -61,7 +54,7 @@ const Home: NextPage = () => {
           </Link>
         </h1>
 
-        <div className="flex justify-center items-center flex-wrap max-w-4xl w-full">
+        <div className="flex justify-center flex-col max-w-4xl w-full">
           <div className="flex-1 m-4 p-6 text-left text-inherit no-underline border border-slate-400 rounded-xl">
             <form onSubmit={aoEnviarForm} className="w-full flex flex-col">
               <div className="flex">
@@ -69,7 +62,7 @@ const Home: NextPage = () => {
                   {url ? "🔗" : "https://"}
                 </code>
                 <input
-                  disabled={estaEnviando}
+                  disabled={!!Raspador.estaRaspando}
                   ref={urlInput}
                   className="w-full px-2 font-mono border-y border-slate-500 focus-visible:outline-non disabled:bg-slate-100 disabled:text-neutral-600"
                   type="url"
@@ -84,13 +77,24 @@ const Home: NextPage = () => {
                   className="px-3 border-y border-r rounded-r-md border-slate-500 bg-slate-300 hover:bg-slate-400 active:bg-slate-500 text-neutral-700 active:text-neutral-800
                   disabled:bg-slate-300 disabled:text-neutral-400"
                   type="submit"
-                  disabled={estaEnviando}
+                  disabled={!!Raspador.estaRaspando}
                 >
                   ▶
                 </button>
               </div>
             </form>
           </div>
+          {!!Raspador.paginaValida && (
+            <div className="flex-1 flex flex-wrap-reverse m-4 p-6 text-left text-inherit no-underline border border-slate-400 rounded-xl">
+              <div className="mx-auto">{Raspador.paginaValida}</div>
+              <div className="mx-auto">✔</div>
+              {Raspador.paginaMetadados && (
+                <div className="mx-auto">
+                  {new Date(Raspador.paginaMetadados.data).toLocaleString()}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </main>
 

@@ -1,10 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import Matriz from "../../../../lib/Matriz";
-import { FerramentasNomes, IPesquisa, RelaçãoPagina, RelaçãoPesquisa } from "../../../types";
+import { FerramentasNomes, IPesquisa, RelaçãoPagina, RelaçãoPesquisas } from "../../../types";
 import { Pesquisa, RaspadorCliente } from "../_lib/classes";
 import ferramentas from "../_lib/ferramentas";
 
-export type Dados = RelaçãoPesquisa;
+export type Dados = RelaçãoPesquisas;
 
 export default async function genreciador(req: NextApiRequest, res: NextApiResponse<Dados>) {
   const metadados: RelaçãoPagina = req.body.titulos;
@@ -39,7 +39,7 @@ export default async function genreciador(req: NextApiRequest, res: NextApiRespo
       return obj;
     }, {} as { [c: string]: Matriz<Promise<Pesquisa> | undefined> });
 
-    let registrosPesquisa = {} as Record<
+    let registrosPesquisas = {} as Record<
       FerramentasNomes,
       Array<Pick<IPesquisa, "posicao" | "pagina">[]>
     >;
@@ -60,9 +60,9 @@ export default async function genreciador(req: NextApiRequest, res: NextApiRespo
         }
       }
 
-      registrosPesquisa[fNome as FerramentasNomes] = registrosPesquisaFerramenta.array2D;
+      registrosPesquisas[fNome as FerramentasNomes] = registrosPesquisaFerramenta.array2D;
     }
 
-    return res.status(200).json({ registrosPesquisa, data: Date.now() });
+    return res.status(200).json({ registrosPesquisas, data: Date.now() });
   } else return res.status(400).end();
 }
