@@ -1,3 +1,4 @@
+import { Cheerio, Element as CheerioElemento } from "cheerio";
 import Dispatcher from "undici/types/dispatcher";
 
 export type RaspadorClienteCabeçalhos<
@@ -46,6 +47,8 @@ export interface IRaspadorSEO {
 }
 /** Texto da página web */
 export type DocumentoTexto = string;
+/** Contexto do texto da página */
+export type ContextoConteudo = string;
 /** Obtém o documento e/ou checa a disponibilidade */
 export type RequisitarPagina = (url: string) => DocumentoTexto;
 
@@ -53,12 +56,16 @@ export interface IDocRaspavel {
   /** Endereço na web */
   endereco: URL | string;
   doc?: DocumentoTexto;
+  conteudo?: ContextoConteudo;
+  /** Requisita o endereço e define o texto do documento se recebido */
   obterDocumento(cliente?: IRaspadorCliente): Promise<this>;
+  /** Se com o documento definido, determina um contexto do conteúdo principal */
+  determinarConteudoPrincipal(): this;
 }
 
 export interface IPagina {
   titulos: string[];
-  rasparTitulos(): Promise<this>;
+  rasparTitulos(): this;
 }
 
 /** Ferramentas de pesquisa utilizadas de fonte */

@@ -20,29 +20,28 @@ export default async function genreciador(req: NextApiRequest, res: NextApiRespo
     let cliente = new RaspadorCliente();
 
     await pagina.obterDocumento();
+    
     try {
-      await pagina.rasparTitulos();
+      pagina.rasparTitulos();
     } catch (e) {
       if (e instanceof Error) console.log(e.message);
     }
 
-    console.log(`[${new Date().toLocaleString()}] Titulos: ${pagina.titulos}`);
-
-    const consultasRelacionadas: RelaçãoPagina["consultasRelacionadas"] = [];
-    if (pagina.titulos.length) {
-      /** obtenção relacionados */
-      cliente = new RaspadorCliente({ origin: Google.origem });
-      let pesquisa: Pesquisa;
-      for (let i = 0; i < pagina.titulos.length; i++) {
-        pesquisa = Google.novaPesquisa(pagina.titulos[i], pagina.endereco);
-        await pesquisa.obterDocumento(cliente);
-        consultasRelacionadas[i] = [pagina.titulos[i], ...(await pesquisa.obterRelacionados())];
-      }
-    }
+    // const consultasRelacionadas: RelaçãoPagina["consultasRelacionadas"] = [];
+    // if (pagina.titulos.length) {
+    //   /** obtenção relacionados */
+    //   cliente = new RaspadorCliente({ origin: Google.origem });
+    //   let pesquisa: Pesquisa;
+    //   for (let i = 0; i < pagina.titulos.length; i++) {
+    //     pesquisa = Google.novaPesquisa(pagina.titulos[i], pagina.endereco);
+    //     await pesquisa.obterDocumento(cliente);
+    //     consultasRelacionadas[i] = [pagina.titulos[i], ...(await pesquisa.obterRelacionados())];
+    //   }
+    // }
 
     return res
       .status(200)
-      .json({ consultasRelacionadas, data: Date.now(), fonte: pagina.endereco });
+      .json({ consultasRelacionadas: pagina.titulos.map((t) => [t]), data: Date.now(), fonte: pagina.endereco });
   } catch (erro) {
     return res.status(500).end();
   }

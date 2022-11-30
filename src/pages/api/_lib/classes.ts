@@ -9,6 +9,7 @@ import {
   RaspadorClienteRequisição,
 } from "../../../types";
 import { Dispatcher, request as undiciRequisitar } from "undici";
+import { Cheerio, load as carregar, Element as ElementoCheerio } from "cheerio";
 
 const RaspadorClienteOpcoes: RaspadorClienteOpções = {
   method: "GET",
@@ -63,6 +64,7 @@ export class RaspadorCliente<
 
 export class DocRaspavel implements IDocRaspavel {
   readonly endereco: URL | string;
+  public conteudo?: string;
 
   private _doc?: string;
   constructor(endereco: string | URL) {
@@ -79,6 +81,89 @@ export class DocRaspavel implements IDocRaspavel {
   get doc() {
     return this._doc;
   }
+  public determinarConteudoPrincipal(): this {
+    if (this.doc) {
+      const $ = carregar(this.doc);
+      let conteudo: Cheerio<ElementoCheerio>;
+      if ($("body").children().length) {
+        conteudo = $("main");
+        conteudo = conteudo.length ? conteudo : $("#main");
+        if (!conteudo.length) {
+          // determina o elemento com conteudo principal
+
+          let cabecalho = $("#header");
+          if (!cabecalho.length) cabecalho = $("header");
+          let rodape = $("#footer");
+          if (!rodape.length) rodape = $("footer");
+
+          // teste de ser um page header ou page footer
+          const maisRazo =
+            cabecalho?.parentsUntil("body").length >= rodape?.parentsUntil("body").length
+              ? rodape
+              : cabecalho;
+
+          if (maisRazo?.parentsUntil("body").length > 1) {
+            if (maisRazo === cabecalho) {
+              // itera desde abaixo o body sobre os elementos pai do header
+              let pais = maisRazo.parentsUntil("body"),
+                i = pais.length - 2;
+              if (pais[i]) {
+                for (; i >= 0; i--) {
+                  for (let irmao = $(pais.get(i)).next(); irmao; irmao = irmao.next()) {
+                    // captura o proximo elemento irmao que tiver mais conteudo
+                    if (!conteudo.length) conteudo = irmao;
+                    else if (irmao.contents().length > conteudo.text().length) conteudo = irmao;
+                  }
+                }
+              } else {
+                // itera desde abaixo o body sobre os elementos pai do rodape
+                let pais = maisRazo.parentsUntil("body"),
+                  i = pais.length - 2;
+                if (pais[i]) {
+                  for (; i >= 0; i--) {
+                    for (let irmao = $(pais.get(i)).prev(); irmao; irmao = irmao.prev()) {
+                      // captura o elemento irmao anterior que tiver mais conteudo
+                      if (!conteudo.length) conteudo = irmao;
+                      else if (irmao.contents().length >= conteudo.text().length) conteudo = irmao;
+                    }
+                  }
+                }
+              }
+            }
+          } else if (maisRazo) {
+            // cabecalho ou rodape é filho direto do body
+            if (maisRazo === cabecalho) {
+              for (let irmao = maisRazo.next(); irmao; irmao = irmao.next()) {
+                // captura o proximo elemento irmao que tiver mais conteudo
+                if (!conteudo.length) conteudo = irmao;
+                else if (irmao.contents().length > conteudo.text().length) conteudo = irmao;
+              }
+            } else {
+              for (let irmao = maisRazo.prev(); irmao; irmao = irmao.prev()) {
+                // captura o elemento irmao anterior que tiver mais conteudo
+                if (!conteudo.length) conteudo = irmao;
+                else if (irmao.contents().length >= conteudo.text().length) conteudo = irmao;
+              }
+            }
+          } else {
+            // determina algum filho direto do body (titulos raspados podem não referir totalmente ao conteudo)
+            $("body")
+              .children()
+              .each((_, el) => {
+                conteudo =
+                  !conteudo.length || $(el).text().length > conteudo.text().length
+                    ? $(el)
+                    : conteudo;
+              });
+          }
+        }
+
+        this.conteudo = conteudo.html() ?? undefined;
+      }
+    }
+
+    return this;
+  }
 }
 
 export class Pagina extends DocRaspavel implements IPagina {
@@ -90,13 +175,47 @@ export class Pagina extends DocRaspavel implements IPagina {
   }
 
   get titulos() {
-    // TODO: ordenar por tag
-    return this._titulos.map(([_, t]) => t);
+    return (
+      this._titulos
+        // valor unicode é crescente, ordena [h1, h2, etc]
+        .sort(([tagA], [tagB]) => (tagA < tagB ? -1 : tagA > tagB ? 1 : 0))
+        .map(([_, t]) => t)
+    );
   }
-  public async rasparTitulos() {
-    // TODO: usar cheerio
-    // validar texto html safe
-    // resumir titulo
+  public rasparTitulos() {
+    if (!this.conteudo) this.determinarConteudoPrincipal();
+    if (this.conteudo) {
+      // Google considera até 32 palavras chave
+      const palavraChaveRgx = /(\b\w+)/g;
+
+      const $ = carregar(this.conteudo);
+
+      this._titulos = [
+        ...$("h1")
+          .toArray()
+          .slice(0, 1)
+          // text() já escapa html chamando DOM<createTextNode()>;
+          .map<[string, string]>((el) => [el.tagName, $(el).text()]),
+        ...$("h2")
+          .toArray()
+          .slice(0, 4)
+          .map<[string, string]>((el) => [el.tagName, $(el).text()]),
+        ...$("h3")
+          .toArray()
+          .slice(0, 3)
+          .map<[string, string]>((el) => [el.tagName, $(el).text()]),
+      ].reduce<typeof this._titulos>((raspados, [tag, texto]) => {
+        if (!palavraChaveRgx.test(texto)) return raspados;
+
+        texto = texto.match(palavraChaveRgx)?.slice(0, 32).join(" ") as string;
+        // limite a 100 caracteres
+        texto = texto.slice(0, 100);
+
+        raspados.push([tag, texto]);
+        return raspados;
+      }, []);
+    }
+
     return this;
   }
 }

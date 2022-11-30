@@ -85,13 +85,18 @@ const Home: NextPage = () => {
             </form>
           </div>
           {!!Raspador.paginaValida && (
-            <div className="flex-1 flex flex-wrap-reverse m-4 p-6 text-left text-inherit no-underline border border-slate-400 rounded-xl">
+            <div className="flex-1 flex flex-col-reverse m-4 p-6 text-left text-inherit no-underline border border-slate-400 rounded-xl">
               <div className="mx-auto">{Raspador.paginaValida}</div>
               <div className="mx-auto">✔</div>
               {Raspador.paginaMetadados && (
+                <>
+                <div className="mx-auto">
+                  {Raspador.paginaMetadados.consultasRelacionadas.map((r) => r.join(", ")).join(", ")}
+                </div>
                 <div className="mx-auto">
                   {new Date(Raspador.paginaMetadados.data).toLocaleString()}
                 </div>
+                </>
               )}
             </div>
           )}
