@@ -90,12 +90,24 @@ const Home: NextPage = () => {
               <div className="mx-auto">✔</div>
               {Raspador.paginaMetadados && (
                 <>
-                <div className="mx-auto">
-                  {Raspador.paginaMetadados.consultasRelacionadas.map((r) => r.join(", ")).join(", ")}
-                </div>
-                <div className="mx-auto">
-                  {new Date(Raspador.paginaMetadados.data).toLocaleString()}
-                </div>
+                  <div className="mx-auto">
+                    {Raspador.paginaMetadados.consultasRelacionadas.map((titulo, i) => (
+                      <div key={titulo[0] + i} className="mx-auto">
+                        ◼
+                        {titulo.map((relacionado, j) => (
+                          <span
+                            key={relacionado + i + j}
+                            className={j ? "italic" : "font-semibold"}
+                          >{`${j ? " " : ""}${relacionado}${
+                            j == titulo.length - 1 ? "" : " ▪"
+                          }`}</span>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mx-auto">
+                    {new Date(Raspador.paginaMetadados.data).toLocaleString()}
+                  </div>
                 </>
               )}
             </div>

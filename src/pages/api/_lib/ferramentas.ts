@@ -6,8 +6,7 @@ export const Google = new FerramentaPesquisa(
   new URL("search", "https://google.com"),
   "q",
   "start",
-  "#search",
-  "#bres"
+  "#search"
 );
 
 export const Bing = new FerramentaPesquisa(

@@ -9,16 +9,21 @@ import {
   RaspadorClienteRequisição,
 } from "../../../types";
 import { Dispatcher, request as undiciRequisitar } from "undici";
-import { Cheerio, load as carregar, Element as ElementoCheerio } from "cheerio";
+import { Cheerio, load as carregar, Element as ElementoCheerio, AnyNode } from "cheerio";
+import { stringify as codificar } from "node:querystring";
+import { escanearTextoCorrespondente } from "../../../../lib/Raspagem";
+import { StringDecoder } from "node:string_decoder";
 
 const RaspadorClienteOpcoes: RaspadorClienteOpções = {
   method: "GET",
   throwOnError: true,
   headersTimeout: 15 * 1000,
   bodyTimeout: 15 * 1000,
+  maxRedirections: 1,
   headers: {
     "user-agent": "ImpulsoSeoBot (https://github.com/goth-d/impulso-seo)",
     accept: "text/html, application/xhtml+xml, application/xml;q=0.9, */*;q=0.8",
+    "content-language": "pt-BR",
   },
 };
 function agregarClienteOpcoes(
@@ -49,16 +54,25 @@ export class RaspadorCliente<
   ): Promise<string> {
     const clienteOpcoes = { ...this.opcoes };
 
-    if (this.opcoes.origin) {
+    if (clienteOpcoes.origin) {
       // adiciona origin caso não tenha no url
-      url = new URL(url, this.opcoes.origin);
+      url = new URL(url, clienteOpcoes.origin);
       // previne erro no undici de argumento invalido
       delete clienteOpcoes.origin;
     }
 
-    return undiciRequisitar(url, agregarClienteOpcoes(opcoes, clienteOpcoes)).then((res) =>
-      res.body.text()
-    );
+    return undiciRequisitar(url, agregarClienteOpcoes(opcoes, clienteOpcoes)).then(async (res) => {
+      if (res.headers["content-type"] && /ISO-8859-1/i.test(res.headers["content-type"])) {
+        let doc = "";
+        const d = new StringDecoder("latin1");
+        for await (let chunk of res.body) {
+          doc += d.write(chunk);
+        }
+        return doc;
+      }
+
+      return res.body.text();
+    });
   }
 }
 
@@ -81,15 +95,21 @@ export class DocRaspavel implements IDocRaspavel {
   get doc() {
     return this._doc;
   }
-  public determinarConteudoPrincipal(): this {
+  public determinarConteudoPrincipal(seletorIndicacao?: string): this {
     if (this.doc) {
       const $ = carregar(this.doc);
-      let conteudo: Cheerio<ElementoCheerio>;
-      if ($("body").children().length) {
+
+      // tenta definir pelo argumento
+      let conteudo: Cheerio<ElementoCheerio | AnyNode> | undefined = seletorIndicacao
+        ? $(seletorIndicacao)
+        : undefined;
+
+      if (!conteudo?.length && $("body").children().length) {
+        // determina o elemento com conteudo principal
         conteudo = $("main");
         conteudo = conteudo.length ? conteudo : $("#main");
         if (!conteudo.length) {
-          // determina o elemento com conteudo principal
+          // tenta predizer o elemento com conteudo principal
 
           let cabecalho = $("#header");
           if (!cabecalho.length) cabecalho = $("header");
@@ -104,24 +124,24 @@ export class DocRaspavel implements IDocRaspavel {
 
           if (maisRazo?.parentsUntil("body").length > 1) {
             if (maisRazo === cabecalho) {
-              // itera desde abaixo o body sobre os elementos pai do header
-              let pais = maisRazo.parentsUntil("body"),
+              // itera sobre irmaos de cabecalho e dos elementos pai ate body
+              let pais = maisRazo.parentsUntil("body").addBack(),
                 i = pais.length - 2;
               if (pais[i]) {
                 for (; i >= 0; i--) {
-                  for (let irmao = $(pais.get(i)).next(); irmao; irmao = irmao.next()) {
+                  for (let irmao = $(pais.get(i)).next(); irmao.length; irmao = irmao.next()) {
                     // captura o proximo elemento irmao que tiver mais conteudo
                     if (!conteudo.length) conteudo = irmao;
                     else if (irmao.contents().length > conteudo.text().length) conteudo = irmao;
                   }
                 }
               } else {
-                // itera desde abaixo o body sobre os elementos pai do rodape
-                let pais = maisRazo.parentsUntil("body"),
+                // itera sobre irmaos de rodape e dos elementos pai ate body
+                let pais = maisRazo.parentsUntil("body").addBack(),
                   i = pais.length - 2;
                 if (pais[i]) {
                   for (; i >= 0; i--) {
-                    for (let irmao = $(pais.get(i)).prev(); irmao; irmao = irmao.prev()) {
+                    for (let irmao = $(pais.get(i)).prev(); irmao.length; irmao = irmao.prev()) {
                       // captura o elemento irmao anterior que tiver mais conteudo
                       if (!conteudo.length) conteudo = irmao;
                       else if (irmao.contents().length >= conteudo.text().length) conteudo = irmao;
@@ -133,13 +153,13 @@ export class DocRaspavel implements IDocRaspavel {
           } else if (maisRazo) {
             // cabecalho ou rodape é filho direto do body
             if (maisRazo === cabecalho) {
-              for (let irmao = maisRazo.next(); irmao; irmao = irmao.next()) {
+              for (let irmao = maisRazo.next(); irmao.length; irmao = irmao.next()) {
                 // captura o proximo elemento irmao que tiver mais conteudo
                 if (!conteudo.length) conteudo = irmao;
                 else if (irmao.contents().length > conteudo.text().length) conteudo = irmao;
               }
             } else {
-              for (let irmao = maisRazo.prev(); irmao; irmao = irmao.prev()) {
+              for (let irmao = maisRazo.prev(); irmao.length; irmao = irmao.prev()) {
                 // captura o elemento irmao anterior que tiver mais conteudo
                 if (!conteudo.length) conteudo = irmao;
                 else if (irmao.contents().length >= conteudo.text().length) conteudo = irmao;
@@ -151,7 +171,7 @@ export class DocRaspavel implements IDocRaspavel {
               .children()
               .each((_, el) => {
                 conteudo =
-                  !conteudo.length || $(el).text().length > conteudo.text().length
+                  !conteudo?.length || $(el).text().length > conteudo.text().length
                     ? $(el)
                     : conteudo;
               });
@@ -226,52 +246,35 @@ export class FerramentaPesquisa implements IFerramentaPesquisa {
   readonly paramConsulta: string;
   readonly paramPosicaoDeslocada: string;
   readonly conteudoSeletor: string;
-  readonly relacionadosSeletor?: string;
 
   constructor(
     nome: FerramentasNomes,
     origem: string | URL,
     paramConsulta: string,
     paramPosicaoDeslocada: string,
-    conteudoSeletor: string,
-    relacionadosSeletor?: string
-  );
-  constructor(
-    nome: FerramentasNomes,
-    origem: string | URL,
-    paramConsulta: string,
-    paramPosicaoDeslocada: string,
-    conteudoSeletor: string,
-    relacionadosSeletor: string
+    conteudoSeletor: string
   ) {
     this.nome = nome;
     this.origem = new URL(origem);
     this.paramConsulta = paramConsulta;
     this.paramPosicaoDeslocada = paramPosicaoDeslocada;
     this.conteudoSeletor = conteudoSeletor;
-    if (relacionadosSeletor) this.relacionadosSeletor = relacionadosSeletor;
   }
 
   public novaPesquisa(consulta: string, fonte: string | URL): Pesquisa {
-    let caminho = "/" + consulta;
-    // TODO: gerar url
-    return new Pesquisa(this, caminho, consulta, fonte);
+    const caminho = `?${codificar({ [this.paramConsulta]: consulta })}`;
+
+    return new Pesquisa(this, consulta, caminho, fonte);
   }
 }
 
 export class Pesquisa extends DocRaspavel implements IPesquisa {
-  readonly ferramenta: FerramentaPesquisa["nome"];
+  readonly ferramenta: FerramentaPesquisa;
   readonly consulta: string;
   readonly fonte: URL;
   private _posicao?: number;
   private _pagina?: number;
-  public obterRelacionados: () => Promise<string[]>;
-  constructor(
-    ferramenta: FerramentaPesquisa,
-    consulta: string,
-    consultaURI: string,
-    fonte: string | URL
-  );
+
   constructor(
     ferramenta: FerramentaPesquisa,
     consulta: string,
@@ -281,23 +284,69 @@ export class Pesquisa extends DocRaspavel implements IPesquisa {
     super(consultaCaminho);
     this.consulta = consulta;
     this.fonte = new URL(fonte);
-    if (ferramenta.relacionadosSeletor)
-      this.obterRelacionados = async () => {
-        return [];
-      };
-    else this.obterRelacionados = async () => [];
-    this.ferramenta = ferramenta.nome;
+    this.ferramenta = ferramenta;
   }
+
   get posicao() {
     return this._posicao || NaN;
   }
   get pagina() {
     return this._pagina || NaN;
   }
-  public async rasparCorrespondente() {
-    // TODO: usar cheerio
-    // veirificar se a correspendencia está contina na página
+  public async rasparCorrespondente(): Promise<this> {
+    // TODO:
+    // raspar a correspendencia no conteudo
     // obter posicao e definir pagina
     return this;
+  }
+  public obterPesquisasRelacionadas(): string[] {
+    const relacionados: string[] = [];
+
+    if (this.doc) {
+      let tituloRgxIntl = [
+        /^(Pesquisas|Buscas)\s(Relacionadas|)/gi,
+        /^(Related|Searches)\s(Searches|Related)/gi,
+      ];
+
+      let correspondentes = escanearTextoCorrespondente(
+        this.doc,
+        (t) => tituloRgxIntl[0].test(t) || tituloRgxIntl[1].test(t)
+      );
+
+      if (correspondentes.length) {
+        let $ = carregar(this.doc, { scriptingEnabled: false });
+
+        // relacionados está por último na pesquisa
+        let predicao = correspondentes[correspondentes.length - 1];
+
+        if (predicao) {
+          let contido = $(predicao.primeiro),
+            titulo = $(predicao.ultimo);
+
+          // TODO: extrair para funcao
+          _relacionadosContainer: for (let pai of titulo.parentsUntil(contido).addBack()) {
+            // procura links, do titulo acima, sobre os nodos irmaos
+
+            _irmaosPaiTitulo: for (
+              let irmao = $(pai).next(), linkRelacionados: Cheerio<ElementoCheerio>;
+              irmao.length;
+              irmao = irmao.next()
+            ) {
+              linkRelacionados = irmao.is("a") ? irmao : irmao.find("a");
+
+              linkRelacionados.each((_, link) => {
+                relacionados.push($(link).text());
+              });
+            }
+
+            // só contidos do nodo pai mais proximo de titulo
+            if (relacionados.length) break _relacionadosContainer;
+          }
+        }
+ 
+      }
+    }
+    // até os 4 primeiros
+    return relacionados.slice(0, 4);
   }
 }

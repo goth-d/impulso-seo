@@ -60,7 +60,7 @@ export interface IDocRaspavel {
   /** Requisita o endereço e define o texto do documento se recebido */
   obterDocumento(cliente?: IRaspadorCliente): Promise<this>;
   /** Se com o documento definido, determina um contexto do conteúdo principal */
-  determinarConteudoPrincipal(): this;
+  determinarConteudoPrincipal(seletorIndicacao?: string): this;
 }
 
 export interface IPagina {
@@ -68,7 +68,7 @@ export interface IPagina {
   rasparTitulos(): this;
 }
 
-/** Ferramentas de pesquisa utilizadas de fonte */
+/** Ferramentas de pesquisa utilizadas no app */
 export type FerramentasNomes = "Google" | "Bing" | "Yahoo";
 
 export interface IFerramentaPesquisa {
@@ -80,19 +80,17 @@ export interface IFerramentaPesquisa {
   paramConsulta: string;
   // #main; #search; #main;
   conteudoSeletor: string;
-
-  relacionadosSeletor?: string;
 }
 
 export interface IPesquisa {
-  ferramenta: IFerramentaPesquisa["nome"];
+  ferramenta: IFerramentaPesquisa;
   consulta: string;
   /** Origem da consulta, para qual deve corresponder a pesquisa */
   fonte: URL;
   posicao: number;
   pagina: number;
   rasparCorrespondente(): Promise<this>;
-  obterRelacionados(): Promise<string[]>;
+  obterPesquisasRelacionadas(): string[];
 }
 
 export type RelaçãoPagina = {
