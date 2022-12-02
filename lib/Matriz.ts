@@ -1,5 +1,12 @@
 /** Valor produto de uma iteração */
-type MatrizIteração<T> = { valor: Awaited<T>; n: number; m: number };
+type MatrizIteração<T> = {
+  /** Valor computado do elemento */
+  valor: Awaited<T>;
+  /** Índice da coluna, X */
+  n: number;
+  /** Índice da linha, Y */
+  m: number;
+};
 /** Propriedades utilizadas numa iteração assíncrona */
 interface MatrizIteraçãoIntervalos {
   intervaloColuna?: number;
@@ -29,10 +36,10 @@ export default class Matriz<T = any>
 
   /**
    *
-   * @param largura - Tamanho horizontal do vetor
-   * @param altura - Tamanho vertical do vetor
-   * @param elemento - Função que popula os elementos durante a criação
-   * @param iteracaoIntervaloElementoUndefined - Intervalo para um próximo elemento `undefined`
+   * @param largura - Tamanho horizontal do vetor, o número de colunas
+   * @param altura - Tamanho vertical do vetor, o número de linhas
+   * @param elemento - Função que popula os valores iniciais dos elementos
+   * @param iteracaoIntervaloElementoUndefined - Se aguarda o intervalo de iteração em elementos `undefined`
    * @param iteracaoIntervaloLinha - Intervalo, em **ms**, entre linhas durante uma iteração assíncrona
    * @param iteracaoIntervaloColuna - Intervalo, em **ms**, entre colunas durante uma iteração assíncrona
    */
@@ -129,6 +136,7 @@ class MatrizIteradorAssincrono<T>
   readonly intervaloColuna?: number;
   readonly intervaloLinha?: number;
   private novaColuna = false;
+  private iterouPrimeiroElemento = false;
 
   constructor(
     matriz: Matriz,
@@ -154,9 +162,17 @@ class MatrizIteradorAssincrono<T>
     // intervalo coluna
     if (this.novaColuna && typeof this.intervaloColuna == "number") {
       this.novaColuna = false;
+      if (!this.iterouPrimeiroElemento) {
+        this.iterouPrimeiroElemento = true;
+        return valor;
+      }
       return await new Promise((res) => setTimeout(() => res(valor), this.intervaloColuna));
     }
 
+    if (!this.iterouPrimeiroElemento) {
+      this.iterouPrimeiroElemento = true;
+      return valor;
+    }
     // intervalo linha
     return typeof this.intervaloLinha == "number"
       ? await new Promise((res) => setTimeout(() => res(valor), this.intervaloLinha))
